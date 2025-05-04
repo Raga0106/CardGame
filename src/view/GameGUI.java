@@ -401,22 +401,17 @@ public class GameGUI extends JFrame {
     private void addHistoryButton() {
         JButton historyButton = new JButton("View History");
         historyButton.addActionListener(e -> {
-            GameRecordService recordService = new GameRecordService();
-            StringBuilder history = new StringBuilder("Game History:\n");
-            try (Connection connection = DriverManager.getConnection("jdbc:sqlite:game_records.db");
-                 Statement statement = connection.createStatement();
-                 ResultSet resultSet = statement.executeQuery("SELECT * FROM record ORDER BY timestamp DESC")) {
-                while (resultSet.next()) {
-                    history.append(String.format("Player: %s, Wins: %d, Losses: %d, Time: %s\n",
-                            resultSet.getString("player_name"),
-                            resultSet.getInt("wins"),
-                            resultSet.getInt("losses"),
-                            resultSet.getString("timestamp")));
+            // 使用 GameRecordService 的方法來查詢對戰紀錄
+            List<String> records = recordService.getAllRecords(currentUser);
+            if (records.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "No records found for user: " + currentUser, "Game History", JOptionPane.INFORMATION_MESSAGE);
+            } else {
+                StringBuilder history = new StringBuilder("Game History:\n");
+                for (String record : records) {
+                    history.append(record).append("\n");
                 }
-            } catch (SQLException ex) {
-                ex.printStackTrace();
+                JOptionPane.showMessageDialog(this, history.toString(), "Game History", JOptionPane.INFORMATION_MESSAGE);
             }
-            JOptionPane.showMessageDialog(this, history.toString(), "Game History", JOptionPane.INFORMATION_MESSAGE);
         });
         add(historyButton, BorderLayout.WEST);
     }

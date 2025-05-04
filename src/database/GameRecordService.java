@@ -5,6 +5,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Service for managing game records in an SQLite database.
@@ -42,34 +44,14 @@ public class GameRecordService {
         System.out.println("[DB] Using DB URL: " + DB_URL);
         try (Connection connection = DriverManager.getConnection(DB_URL);
              Statement statement = connection.createStatement()) {
-         
+
             // 檢查所有必要的資料表是否已存在
             boolean recordTableExists = false;
-            boolean playersTableExists = false;
-            boolean deckTableExists = false;
-
             ResultSet rs = connection.getMetaData().getTables(null, null, "record", null);
             if (rs.next()) {
                 recordTableExists = true;
             }
 
-            rs = connection.getMetaData().getTables(null, null, "players", null);
-            if (rs.next()) {
-                playersTableExists = true;
-            }
-
-            rs = connection.getMetaData().getTables(null, null, "deck", null);
-            if (rs.next()) {
-                deckTableExists = true;
-            }
-
-            // 如果所有表都已存在，跳過初始化
-            if (recordTableExists && playersTableExists && deckTableExists) {
-                System.out.println("[DB] All tables already exist. Skipping initialization.");
-                return;
-            }
-
-            // 創建必要的表
             if (!recordTableExists) {
                 statement.execute("CREATE TABLE IF NOT EXISTS record (" +
                         "id INTEGER PRIMARY KEY AUTOINCREMENT," +
@@ -80,28 +62,8 @@ public class GameRecordService {
                         "timestamp DATETIME DEFAULT CURRENT_TIMESTAMP" +
                         ");");
                 System.out.println("[DB] 'record' table created.");
-            }
-
-            if (!playersTableExists) {
-                statement.execute("CREATE TABLE IF NOT EXISTS players (" +
-                        "username TEXT PRIMARY KEY, password TEXT NOT NULL" +
-                        ");");
-                System.out.println("[DB] 'players' table created.");
-            }
-
-            if (!deckTableExists) {
-                statement.execute("CREATE TABLE IF NOT EXISTS deck (" +
-                        "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                        "username TEXT NOT NULL, " +
-                        "card_name TEXT NOT NULL, " +
-                        "attribute TEXT NOT NULL, " +
-                        "rarity TEXT NOT NULL, " +
-                        "type TEXT NOT NULL, " +
-                        "description TEXT, " +
-                        "base_power INTEGER NOT NULL, " +
-                        "FOREIGN KEY(username) REFERENCES players(username)" +
-                        ");");
-                System.out.println("[DB] 'deck' table created.");
+            } else {
+                System.out.println("[DB] 'record' table already exists.");
             }
 
             // 確保管理員帳號存在
@@ -129,7 +91,9 @@ public class GameRecordService {
             preparedStatement.setInt(3, wins);
             preparedStatement.setInt(4, losses);
             preparedStatement.executeUpdate();
+            System.out.println("[DB] Record saved: Username=" + username + ", PlayerName=" + playerName + ", Wins=" + wins + ", Losses=" + losses);
         } catch (SQLException e) {
+            System.err.println("[DB] Error saving record: " + e.getMessage());
             e.printStackTrace();
         }
     }
@@ -139,21 +103,29 @@ public class GameRecordService {
      * @param username The username whose records are to be retrieved.
      */
     public void printAllRecords(String username) {
+        System.out.println("[DB] Checking records for username: " + username);
         String querySQL = "SELECT * FROM record WHERE username = ? ORDER BY timestamp DESC;";
         try (Connection connection = DriverManager.getConnection(DB_URL);
              PreparedStatement preparedStatement = connection.prepareStatement(querySQL)) {
             preparedStatement.setString(1, username);
             try (ResultSet resultSet = preparedStatement.executeQuery()) {
+                boolean hasRecords = false;
                 while (resultSet.next()) {
-                    System.out.printf("ID: %d, Player: %s, Wins: %d, Losses: %d, Timestamp: %s\n",
+                    hasRecords = true;
+                    System.out.printf("ID: %d, Username: %s, Player: %s, Wins: %d, Losses: %d, Timestamp: %s\n",
                             resultSet.getInt("id"),
+                            username,
                             resultSet.getString("player_name"),
                             resultSet.getInt("wins"),
                             resultSet.getInt("losses"),
                             resultSet.getString("timestamp"));
                 }
+                if (!hasRecords) {
+                    System.out.println("[DB] No records found for username: " + username);
+                }
             }
         } catch (SQLException e) {
+            System.err.println("[DB] Error retrieving records: " + e.getMessage());
             e.printStackTrace();
         }
     }
@@ -357,5 +329,28 @@ public class GameRecordService {
             e.printStackTrace();
         }
         return deck;
+    }
+
+    public List<String> getAllRecords(String username) {
+        List<String> records = new ArrayList<>();
+        String querySQL = "SELECT * FROM record WHERE username = ? ORDER BY timestamp DESC;";
+        try (Connection connection = DriverManager.getConnection(DB_URL);
+             PreparedStatement preparedStatement = connection.prepareStatement(querySQL)) {
+            preparedStatement.setString(1, username);
+            try (ResultSet resultSet = preparedStatement.executeQuery()) {
+                while (resultSet.next()) {
+                    String record = String.format("Player: %s, Wins: %d, Losses: %d, Time: %s",
+                            resultSet.getString("player_name"),
+                            resultSet.getInt("wins"),
+                            resultSet.getInt("losses"),
+                            resultSet.getString("timestamp"));
+                    records.add(record);
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("[DB] Error retrieving records: " + e.getMessage());
+            e.printStackTrace();
+        }
+        return records;
     }
 }
