@@ -10,11 +10,6 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.List;
 import java.util.Map;
 import java.util.LinkedHashMap;
@@ -48,8 +43,8 @@ public class GameGUI extends JFrame {
     private JLabel playerRatingLabel; // Label for player rating
     private JPanel rankingPanel; // Panel for rankings
     private JComboBox<String> rankingCombo; // Choose ranking type
-    private DefaultListModel<String> rankingListModel;
-    private JList<String> rankingList;
+    private DefaultListModel<Player> rankingListModel; // 改為Player型別
+    private JList<Player> rankingList; // 改為Player型別
 
     /**
      * Constructor for GameGUI.
@@ -119,11 +114,11 @@ public class GameGUI extends JFrame {
 
         JPanel buttonPanel = new JPanel(new GridLayout(1, 2));
         JButton registerButton = new JButton("Register");
-        registerButton.addActionListener(e -> {
+        registerButton.addActionListener(e -> { 
             String user = JOptionPane.showInputDialog(this, "Enter username:");
             if (user != null && !user.isEmpty()) {
                 String pass = JOptionPane.showInputDialog(this, "Enter password:");
-                if (pass != null && !pass.isEmpty()) {
+                if (pass != null && !pass.isEmpty()) { 
                     if (recordService.registerUser(user, pass)) {
                         JOptionPane.showMessageDialog(this, "Registration successful! Please log in.");
                     } else {
@@ -133,7 +128,7 @@ public class GameGUI extends JFrame {
             }
         });
         JButton loginButton = new JButton("Login");
-        loginButton.addActionListener(e -> {
+        loginButton.addActionListener(e -> { 
             String user = JOptionPane.showInputDialog(this, "Username:");
             String pass = JOptionPane.showInputDialog(this, "Password:");
             if (user != null && pass != null) {
@@ -179,19 +174,19 @@ public class GameGUI extends JFrame {
         updatePlayerStatsDisplay();
 
         JButton drawEntry = new JButton("抽卡");
-        drawEntry.addActionListener(e -> showDrawOptionsPanel());
+        drawEntry.addActionListener(e -> { showDrawOptionsPanel(); });
         lobbyPanel.add(drawEntry);
 
         JButton battleButton = new JButton("Battle");
-        battleButton.addActionListener(e -> showSelectionPanel());
+        battleButton.addActionListener(e -> { showSelectionPanel(); });
         lobbyPanel.add(battleButton);
 
         JButton checkDeckButton = new JButton("Check Deck");
-        checkDeckButton.addActionListener(e -> showDeck());
+        checkDeckButton.addActionListener(e -> { showDeck(); });
         lobbyPanel.add(checkDeckButton);
 
         JButton logoutButton = new JButton("Logout");
-        logoutButton.addActionListener(e -> {
+        logoutButton.addActionListener(e -> { 
             currentUser = null;
             JOptionPane.showMessageDialog(this, "You have been logged out.", "Logout", JOptionPane.INFORMATION_MESSAGE);
             showLoginPanel();
@@ -201,7 +196,7 @@ public class GameGUI extends JFrame {
         // If admin is logged in, add database initialize button
         if ("admin".equals(currentUser)) {
             JButton initDbButton = new JButton("Initialize Database");
-            initDbButton.addActionListener(e -> {
+            initDbButton.addActionListener(e -> { 
                 int confirm = JOptionPane.showConfirmDialog(this,
                     "Are you sure you want to clear all game records?",
                     "Confirm", JOptionPane.YES_NO_OPTION);
@@ -219,7 +214,7 @@ public class GameGUI extends JFrame {
         // Add a button for admin to clear database by type
         if ("admin".equals(currentUser)) {
             JButton clearRecordsButton = new JButton("Clear All Records");
-            clearRecordsButton.addActionListener(e -> {
+            clearRecordsButton.addActionListener(e -> { 
                 int confirm = JOptionPane.showConfirmDialog(this,
                     "Are you sure you want to clear all game records?",
                     "Confirm", JOptionPane.YES_NO_OPTION);
@@ -233,7 +228,7 @@ public class GameGUI extends JFrame {
             });
 
             JButton clearCardsButton = new JButton("Clear All Card Libraries");
-            clearCardsButton.addActionListener(e -> {
+            clearCardsButton.addActionListener(e -> { 
                 int confirm = JOptionPane.showConfirmDialog(this,
                     "Are you sure you want to clear all card libraries?",
                     "Confirm", JOptionPane.YES_NO_OPTION);
@@ -251,13 +246,13 @@ public class GameGUI extends JFrame {
         }
 
         JButton rankingButton = new JButton("排名");
-        rankingButton.addActionListener(e -> showRankingPanel());
+        rankingButton.addActionListener(e -> { showRankingPanel(); });
         lobbyPanel.add(rankingButton);
     }
 
     private void initializeDrawOptionsPanel() {
         JButton singleDraw = new JButton("單抽");
-        singleDraw.addActionListener(e -> {
+        singleDraw.addActionListener(e -> { 
             Card newCard = gameController.drawCard();
             recordService.saveCardToDeck(currentUser, newCard); // 保存卡片到資料庫
             String msg = String.format("You drew: %s (%s %s, Type: %s, Power: %d)\n%s", 
@@ -265,7 +260,7 @@ public class GameGUI extends JFrame {
             JOptionPane.showMessageDialog(this, msg, "單抽結果", JOptionPane.INFORMATION_MESSAGE);
         });
         JButton tenDraw = new JButton("十連抽");
-        tenDraw.addActionListener(e -> {
+        tenDraw.addActionListener(e -> { 
             List<Card> newCards = gameController.drawMultiple(10);
             for (Card card : newCards) {
                 recordService.saveCardToDeck(currentUser, card); // 保存每張卡片到資料庫
@@ -277,7 +272,7 @@ public class GameGUI extends JFrame {
         drawOptionsPanel.add(tenDraw);
         // Add Back to Lobby button
         JButton backToLobby = new JButton("返回大廳");
-        backToLobby.addActionListener(e -> showLobbyPanel());
+        backToLobby.addActionListener(e -> { showLobbyPanel(); });
         drawOptionsPanel.add(backToLobby);
     }
 
@@ -294,7 +289,7 @@ public class GameGUI extends JFrame {
         topPanel.add(scoreLabel);
         topPanel.add(roundLabel);
         JButton backToLobbyFromBattle = new JButton("Back to Lobby");
-        backToLobbyFromBattle.addActionListener(e -> showLobbyPanel());
+        backToLobbyFromBattle.addActionListener(e -> { showLobbyPanel(); });
         topPanel.add(backToLobbyFromBattle);
         battlePanel.add(topPanel, BorderLayout.NORTH);
 
@@ -431,7 +426,7 @@ public class GameGUI extends JFrame {
 
     private void addRestartButton() {
         JButton restartButton = new JButton("Restart Game");
-        restartButton.addActionListener(e -> {
+        restartButton.addActionListener(e -> { 
             gameController.startGame();
             gameLog.setText("");
             scoreLabel.setText("Player: 0 | Computer: 0");
@@ -443,7 +438,7 @@ public class GameGUI extends JFrame {
 
     private void addHistoryButton() {
         JButton historyButton = new JButton("View History");
-        historyButton.addActionListener(e -> {
+        historyButton.addActionListener(e -> { 
             // 使用 GameRecordService 的方法來查詢對戰紀錄
             List<String> records = recordService.getAllRecords(currentUser);
             if (records.isEmpty()) {
@@ -519,9 +514,9 @@ public class GameGUI extends JFrame {
         drawCardPanel.add(cardDisplayPanel, BorderLayout.CENTER);
         // Control buttons
         JButton startGameButton = new JButton("Start Game");
-        startGameButton.addActionListener(e -> showBattlePanel());
+        startGameButton.addActionListener(e -> { showBattlePanel(); });
         JButton backToLobbyFromDraw = new JButton("Back to Lobby");
-        backToLobbyFromDraw.addActionListener(e -> showLobbyPanel());
+        backToLobbyFromDraw.addActionListener(e -> { showLobbyPanel(); });
         JPanel drawSouth = new JPanel();
         drawSouth.add(startGameButton);
         drawSouth.add(backToLobbyFromDraw);
@@ -557,7 +552,7 @@ public class GameGUI extends JFrame {
 
         JPanel btnPanel = new JPanel();
         JButton confirm = new JButton("Confirm");
-        confirm.addActionListener(e -> {
+        confirm.addActionListener(e -> { 
             List<Card> deck = gameController.getPlayerDeck(); // Ensure deck is fetched from GameController
             int[] sel = deckList.getSelectedIndices();
             if (sel.length != 10) {
@@ -572,7 +567,7 @@ public class GameGUI extends JFrame {
             showBattlePanel();
         });
         JButton back = new JButton("Back to Lobby");
-        back.addActionListener(e -> showLobbyPanel());
+        back.addActionListener(e -> { showLobbyPanel(); });
         btnPanel.add(confirm);
         btnPanel.add(back);
         selectionPanel.add(btnPanel, BorderLayout.SOUTH);
@@ -613,46 +608,100 @@ public class GameGUI extends JFrame {
      * Initializes the ranking panel with controls and list.
      */
     private void initializeRankingPanel() {
+        rankingPanel.removeAll(); // Clear previous components if re-initializing
+        rankingPanel.setLayout(new BorderLayout(10, 10)); // Add gaps between BorderLayout regions
+        rankingPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10)); // Add padding around the panel
+
         // Title
-        JLabel title = new JLabel("Ranking", SwingConstants.CENTER);
-        title.setFont(new Font("Arial", Font.BOLD, 24));
+        JLabel title = new JLabel("排行榜", SwingConstants.CENTER); // Changed to Chinese for consistency
+        title.setFont(new Font("Microsoft JhengHei UI", Font.BOLD, 28)); // Example of a more modern font
+        title.setBorder(BorderFactory.createEmptyBorder(10, 0, 20, 0)); // Add padding below title
         rankingPanel.add(title, BorderLayout.NORTH);
 
         // Ranking list in center
         rankingListModel = new DefaultListModel<>();
         rankingList = new JList<>(rankingListModel);
-        rankingPanel.add(new JScrollPane(rankingList), BorderLayout.CENTER);
+        rankingList.setFont(new Font("Microsoft JhengHei UI", Font.PLAIN, 14));
+        // Apply custom cell renderer for better list item appearance
+        rankingList.setCellRenderer(new CustomRankingRenderer());
+        JScrollPane scrollPane = new JScrollPane(rankingList);
+        rankingPanel.add(scrollPane, BorderLayout.CENTER);
 
         // Controls (combo, sort, back) at bottom
+        JPanel controlPanel = new JPanel(new GridBagLayout()); // Use GridBagLayout for more control
+        controlPanel.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0)); // Padding above control panel
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(5, 5, 5, 5); // Spacing between components
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+
+        JLabel sortByLabel = new JLabel("排序依據：");
+        sortByLabel.setFont(new Font("Microsoft JhengHei UI", Font.PLAIN, 14));
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.weightx = 0; // Label doesn't expand
+        gbc.anchor = GridBagConstraints.LINE_START;
+        controlPanel.add(sortByLabel, gbc);
+
         String[] options = {"等級", "貨幣", "牌位積分"};
         rankingCombo = new JComboBox<>(options);
+        rankingCombo.setFont(new Font("Microsoft JhengHei UI", Font.PLAIN, 14));
+        gbc.gridx = 1;
+        gbc.gridy = 0;
+        gbc.weightx = 0.5; // ComboBox takes available space
+        controlPanel.add(rankingCombo, gbc);
+
         JButton sortButton = new JButton("排序");
-        JButton backButton = new JButton("Back");
-        backButton.addActionListener(e -> showLobbyPanel());
-        JPanel controlPanel = new JPanel();
-        controlPanel.add(new JLabel("依據："));
-        controlPanel.add(rankingCombo);
-        controlPanel.add(sortButton);
-        controlPanel.add(backButton);
+        sortButton.setFont(new Font("Microsoft JhengHei UI", Font.PLAIN, 14));
+        gbc.gridx = 2;
+        gbc.gridy = 0;
+        gbc.weightx = 0.25; // Button takes some space
+        controlPanel.add(sortButton, gbc);
+
+        JButton backButton = new JButton("返回大廳"); // Changed to Chinese
+        backButton.setFont(new Font("Microsoft JhengHei UI", Font.PLAIN, 14));
+        gbc.gridx = 3;
+        gbc.gridy = 0;
+        gbc.weightx = 0.25; // Button takes some space
+        controlPanel.add(backButton, gbc);
+        // Add action listener for back to lobby button in ranking panel
+        backButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                showLobbyPanel();
+                mainPanel.revalidate();
+                mainPanel.repaint();
+            }
+        });
+
         rankingPanel.add(controlPanel, BorderLayout.SOUTH);
 
-        sortButton.addActionListener(e -> {
-            rankingListModel.clear();
-            List<Player> all = recordService.loadAllPlayers();
-            String key = (String) rankingCombo.getSelectedItem();
-            Comparator<Player> comp;
-            if ("貨幣".equals(key)) {
-                comp = Comparator.comparingInt(Player::getCurrency).reversed();
-            } else if ("牌位積分".equals(key)) {
-                comp = Comparator.comparingInt(Player::getRating).reversed();
-            } else {
-                comp = Comparator.comparingInt(Player::getLevel).reversed();
+        // Action listener for sort button
+        sortButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                rankingListModel.clear();
+                List<Player> all = recordService.loadAllPlayers();
+                String key = (String) rankingCombo.getSelectedItem();
+                Comparator<Player> comp;
+                if ("貨幣".equals(key)) {
+                    comp = Comparator.comparingInt(Player::getCurrency).reversed();
+                } else if ("牌位積分".equals(key)) {
+                    comp = Comparator.comparingInt(Player::getRating).reversed();
+                } else {
+                    comp = Comparator.comparingInt(Player::getLevel).reversed();
+                }
+                all.stream().sorted(comp).forEach(p -> rankingListModel.addElement(p));
             }
-            all.stream().sorted(comp).forEach(p -> {
-                String line = String.format("%s - 等級:%d, 貨幣:%d, 牌位:%d",
-                    p.getUsername(), p.getLevel(), p.getCurrency(), p.getRating());
-                rankingListModel.addElement(line);
-            });
+        });
+
+        // Back to lobby button action listener for ranking panel
+        backButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                showLobbyPanel();
+                mainPanel.revalidate();
+                mainPanel.repaint();
+            }
         });
     }
 
@@ -666,6 +715,37 @@ public class GameGUI extends JFrame {
         super.setVisible(b);
         addRestartButton();
         addHistoryButton();
+    }
+
+    // Custom renderer for ranking list items
+    private class CustomRankingRenderer extends JPanel implements ListCellRenderer<Player> {
+        private JLabel nameLabel = new JLabel();
+        private JLabel levelLabel = new JLabel();
+        private JLabel currencyLabel = new JLabel();
+        private JLabel ratingLabel = new JLabel();
+        public CustomRankingRenderer() {
+            setLayout(new GridLayout(2, 2, 5, 5));
+            setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+            add(nameLabel);
+            add(levelLabel);
+            add(currencyLabel);
+            add(ratingLabel);
+        }
+        @Override
+        public Component getListCellRendererComponent(JList<? extends Player> list, Player player, int index, boolean isSelected, boolean cellHasFocus) {
+            nameLabel.setText(player.getUsername());
+            levelLabel.setText("等級: " + player.getLevel());
+            currencyLabel.setText("貨幣: " + player.getCurrency());
+            ratingLabel.setText("牌位積分: " + player.getRating());
+            if (isSelected) {
+                setBackground(list.getSelectionBackground());
+                setForeground(list.getSelectionForeground());
+            } else {
+                setBackground(list.getBackground());
+                setForeground(list.getForeground());
+            }
+            return this;
+        }
     }
 
     public static void main(String[] args) {
