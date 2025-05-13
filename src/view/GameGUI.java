@@ -15,10 +15,13 @@ import java.util.Map;
 import java.util.LinkedHashMap;
 import java.util.ArrayList;
 import java.util.Comparator;
+import javax.swing.JProgressBar;
+import java.awt.event.KeyEvent;
 
 /**
  * GUI-based interface for the game using Swing.
  */
+@SuppressWarnings("unused")
 public class GameGUI extends JFrame {
     private final GameController gameController;
     private JTextArea gameLog;
@@ -45,6 +48,7 @@ public class GameGUI extends JFrame {
     private JComboBox<String> rankingCombo; // Choose ranking type
     private DefaultListModel<Player> rankingListModel; // 改為Player型別
     private JList<Player> rankingList; // 改為Player型別
+    private JProgressBar xpBar;      // Progress bar for XP
 
     /**
      * Constructor for GameGUI.
@@ -161,15 +165,31 @@ public class GameGUI extends JFrame {
         lobbyPanel.add(titleLabel);
 
         // Stats panel for level, XP, currency, rating
-        JPanel statsPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        // Stats panel with XP progress bar
+        JPanel statsPanel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbcStats = new GridBagConstraints();
+        gbcStats.insets = new Insets(5,5,5,5);
+        gbcStats.gridy = 0;
+        gbcStats.gridx = 0;
         playerLevelLabel = new JLabel();
+        statsPanel.add(playerLevelLabel, gbcStats);
+        gbcStats.gridx = 1;
         playerXpLabel = new JLabel();
+        statsPanel.add(playerXpLabel, gbcStats);
+        gbcStats.gridx = 2;
+        gbcStats.weightx = 1;
+        gbcStats.fill = GridBagConstraints.HORIZONTAL;
+        xpBar = new JProgressBar();
+        xpBar.setStringPainted(true);
+        statsPanel.add(xpBar, gbcStats);
+        gbcStats.fill = GridBagConstraints.NONE;
+        gbcStats.weightx = 0;
+        gbcStats.gridx = 3;
         playerCurrencyLabel = new JLabel();
+        statsPanel.add(playerCurrencyLabel, gbcStats);
+        gbcStats.gridx = 4;
         playerRatingLabel = new JLabel();
-        statsPanel.add(playerLevelLabel);
-        statsPanel.add(playerXpLabel);
-        statsPanel.add(playerCurrencyLabel);
-        statsPanel.add(playerRatingLabel);
+        statsPanel.add(playerRatingLabel, gbcStats);
         lobbyPanel.add(statsPanel);
         updatePlayerStatsDisplay();
 
@@ -594,11 +614,16 @@ public class GameGUI extends JFrame {
             Player player = gameController.getCurrentPlayer();
             playerLevelLabel.setText("Level: " + player.getLevel());
             playerXpLabel.setText(String.format("XP: %d/%d", player.getXp(), player.getXpToNextLevel()));
+            xpBar.setMaximum(player.getXpToNextLevel());
+            xpBar.setValue(player.getXp());
+            xpBar.setString(player.getXp() + " / " + player.getXpToNextLevel());
             playerCurrencyLabel.setText("Currency: " + player.getCurrency());
             playerRatingLabel.setText("Rating: " + player.getRating());
         } else {
             playerLevelLabel.setText("Level: -");
             playerXpLabel.setText("XP: -/-");
+            xpBar.setValue(0);
+            xpBar.setString("0 / 0");
             playerCurrencyLabel.setText("Currency: -");
             playerRatingLabel.setText("Rating: -");
         }
@@ -645,6 +670,7 @@ public class GameGUI extends JFrame {
         String[] options = {"等級", "貨幣", "牌位積分"};
         rankingCombo = new JComboBox<>(options);
         rankingCombo.setFont(new Font("Microsoft JhengHei UI", Font.PLAIN, 14));
+        rankingCombo.setToolTipText("選擇排序依據");
         gbc.gridx = 1;
         gbc.gridy = 0;
         gbc.weightx = 0.5; // ComboBox takes available space
@@ -652,6 +678,8 @@ public class GameGUI extends JFrame {
 
         JButton sortButton = new JButton("排序");
         sortButton.setFont(new Font("Microsoft JhengHei UI", Font.PLAIN, 14));
+        sortButton.setToolTipText("依照選擇的依據對玩家排名排序");
+        sortButton.setMnemonic(KeyEvent.VK_S);
         gbc.gridx = 2;
         gbc.gridy = 0;
         gbc.weightx = 0.25; // Button takes some space
@@ -659,6 +687,8 @@ public class GameGUI extends JFrame {
 
         JButton backButton = new JButton("返回大廳"); // Changed to Chinese
         backButton.setFont(new Font("Microsoft JhengHei UI", Font.PLAIN, 14));
+        backButton.setToolTipText("返回大廳");
+        backButton.setMnemonic(KeyEvent.VK_B);
         gbc.gridx = 3;
         gbc.gridy = 0;
         gbc.weightx = 0.25; // Button takes some space
