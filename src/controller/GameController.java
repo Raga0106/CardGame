@@ -1,6 +1,7 @@
 package controller;
 
 import model.Card;
+import model.Player; // Add import for Player
 import service.GachaService;
 import service.BattleService;
 import service.BattleService.BattleResult;
@@ -20,6 +21,7 @@ public class GameController {
     private List<Card> computerCards;
     private int playerScore;
     private int computerScore;
+    private Player currentPlayer; // Track current player for stats
 
     /**
      * Constructor for GameController.
@@ -102,11 +104,35 @@ public class GameController {
 
         if (result.getWinner() == playerCard) {
             playerScore++;
-        } else {
+            addXP(10);      // award XP for win
+            addCurrency(5); // award currency for win
+        } else if (result.getWinner() == computerCard) {
             computerScore++;
+        } else {
+            // draw
+            addXP(2);
+            addCurrency(1);
         }
 
         return result;
+    }
+
+    /**
+     * Award experience points to current player.
+     */
+    public void addXP(int amount) {
+        if (currentPlayer != null) {
+            currentPlayer.addXp(amount);
+        }
+    }
+
+    /**
+     * Award currency to current player.
+     */
+    public void addCurrency(int amount) {
+        if (currentPlayer != null) {
+            currentPlayer.addCurrency(amount);
+        }
     }
 
     /**
@@ -147,5 +173,44 @@ public class GameController {
     public void loadPlayerDeck(String username, GameRecordService recordService) {
         playerDeck.clear();
         playerDeck.addAll(recordService.loadDeck(username));
+    }
+
+    public void addRating(int amount) {
+        if (currentPlayer != null) {
+            currentPlayer.addRating(amount);
+        }
+    }
+
+    /**
+     * Calculate rating delta: difference between wins and losses.
+     * @return positive if player had more wins, negative if more losses.
+     */
+    public int calculateRatingDelta() {
+        return playerScore - computerScore;
+    }
+
+    /**
+     * Apply rating change after a full match.
+     */
+    public void applyRatingChange() {
+        if (currentPlayer != null) {
+            int delta = calculateRatingDelta();
+            currentPlayer.addRating(delta);
+        }
+    }
+
+    /**
+     * Get current player's rating.
+     */
+    public int getPlayerRating() {
+        return currentPlayer != null ? currentPlayer.getRating() : 0;
+    }
+
+    public void setCurrentPlayer(Player player) {
+        this.currentPlayer = player;
+    }
+
+    public Player getCurrentPlayer() {
+        return currentPlayer;
     }
 }

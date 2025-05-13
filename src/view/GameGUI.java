@@ -2,6 +2,7 @@ package view;
 
 import controller.GameController;
 import model.Card;
+import model.Player; // Import Player for stats
 import service.BattleService.BattleResult;
 import database.GameRecordService; // Import GameRecordService
 
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.LinkedHashMap;
 import java.util.ArrayList;
+import java.util.Comparator;
 
 /**
  * GUI-based interface for the game using Swing.
@@ -40,6 +42,14 @@ public class GameGUI extends JFrame {
     private JList<String> deckList;
     private GameRecordService recordService;  // Database service for users and records
     private String currentUser; // Track logged-in user
+    private JLabel playerLevelLabel; // Label for player level
+    private JLabel playerXpLabel;   // Label for player XP
+    private JLabel playerCurrencyLabel; // Label for player currency
+    private JLabel playerRatingLabel; // Label for player rating
+    private JPanel rankingPanel; // Panel for rankings
+    private JComboBox<String> rankingCombo; // Choose ranking type
+    private DefaultListModel<String> rankingListModel;
+    private JList<String> rankingList;
 
     /**
      * Constructor for GameGUI.
@@ -86,6 +96,9 @@ public class GameGUI extends JFrame {
         selectionPanel = new JPanel(new BorderLayout());
         initializeSelectionPanel();
 
+        rankingPanel = new JPanel(new BorderLayout());
+        initializeRankingPanel();
+
         // Add panels to main panel
         mainPanel.add(loginPanel, "Login");
         mainPanel.add(lobbyPanel, "Lobby");
@@ -93,6 +106,7 @@ public class GameGUI extends JFrame {
         mainPanel.add(drawCardPanel, "DrawCard");
         mainPanel.add(selectionPanel, "SelectBattleCards");
         mainPanel.add(battlePanel, "Battle");
+        mainPanel.add(rankingPanel, "Ranking");
 
         // Show login panel first
         showLoginPanel();
@@ -124,8 +138,14 @@ public class GameGUI extends JFrame {
             String pass = JOptionPane.showInputDialog(this, "Password:");
             if (user != null && pass != null) {
                 if (recordService.loginUser(user, pass)) {
-                    currentUser = user; // 記錄當前登入用戶
-                    gameController.loadPlayerDeck(currentUser, recordService); // 從資料庫載入卡片庫
+                    currentUser = user;
+                    // Load or create player data, and set as current player
+                    Player player = recordService.loadPlayerData(currentUser);
+                    gameController.setCurrentPlayer(player);
+                    gameController.loadPlayerDeck(currentUser, recordService);
+                    updatePlayerStatsDisplay();
+                    // Debug: print entire players table content
+                    recordService.checkDatabaseContent();
                     showLobbyPanel();
                 } else {
                     JOptionPane.showMessageDialog(this, "Login failed. Check credentials.", "Error", JOptionPane.ERROR_MESSAGE);
@@ -144,6 +164,19 @@ public class GameGUI extends JFrame {
         JLabel titleLabel = new JLabel("Game Lobby", SwingConstants.CENTER);
         titleLabel.setFont(new Font("Arial", Font.BOLD, 24));
         lobbyPanel.add(titleLabel);
+
+        // Stats panel for level, XP, currency, rating
+        JPanel statsPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        playerLevelLabel = new JLabel();
+        playerXpLabel = new JLabel();
+        playerCurrencyLabel = new JLabel();
+        playerRatingLabel = new JLabel();
+        statsPanel.add(playerLevelLabel);
+        statsPanel.add(playerXpLabel);
+        statsPanel.add(playerCurrencyLabel);
+        statsPanel.add(playerRatingLabel);
+        lobbyPanel.add(statsPanel);
+        updatePlayerStatsDisplay();
 
         JButton drawEntry = new JButton("抽卡");
         drawEntry.addActionListener(e -> showDrawOptionsPanel());
@@ -216,6 +249,10 @@ public class GameGUI extends JFrame {
             lobbyPanel.add(clearRecordsButton);
             lobbyPanel.add(clearCardsButton);
         }
+
+        JButton rankingButton = new JButton("排名");
+        rankingButton.addActionListener(e -> showRankingPanel());
+        lobbyPanel.add(rankingButton);
     }
 
     private void initializeDrawOptionsPanel() {
@@ -377,6 +414,10 @@ public class GameGUI extends JFrame {
         recordService.saveRecord(currentUser, "Player", gameController.getPlayerScore(), gameController.getComputerScore());
         gameLog.append("Game record saved.\n");
 
+        // Apply rating change based on wins/losses and save
+        gameController.applyRatingChange();
+        recordService.savePlayerData(gameController.getCurrentPlayer());
+        updatePlayerStatsDisplay();
 
         JOptionPane.showMessageDialog(this, "Game Over! Winner: " + winner + "\n" + finalScore, "Game Over", JOptionPane.INFORMATION_MESSAGE);
 
@@ -384,6 +425,8 @@ public class GameGUI extends JFrame {
         for (Component comp : cardPanel.getComponents()) {
             comp.setEnabled(false);
         }
+        // Return to lobby to show updated stats
+        showLobbyPanel();
     }
 
     private void addRestartButton() {
@@ -549,6 +592,73 @@ public class GameGUI extends JFrame {
         }
         CardLayout layout = (CardLayout) mainPanel.getLayout();
         layout.show(mainPanel, "SelectBattleCards");
+    }
+
+    private void updatePlayerStatsDisplay() {
+        if (currentUser != null && gameController.getCurrentPlayer() != null) {
+            Player player = gameController.getCurrentPlayer();
+            playerLevelLabel.setText("Level: " + player.getLevel());
+            playerXpLabel.setText(String.format("XP: %d/%d", player.getXp(), player.getXpToNextLevel()));
+            playerCurrencyLabel.setText("Currency: " + player.getCurrency());
+            playerRatingLabel.setText("Rating: " + player.getRating());
+        } else {
+            playerLevelLabel.setText("Level: -");
+            playerXpLabel.setText("XP: -/-");
+            playerCurrencyLabel.setText("Currency: -");
+            playerRatingLabel.setText("Rating: -");
+        }
+    }
+
+    /**
+     * Initializes the ranking panel with controls and list.
+     */
+    private void initializeRankingPanel() {
+        // Title
+        JLabel title = new JLabel("Ranking", SwingConstants.CENTER);
+        title.setFont(new Font("Arial", Font.BOLD, 24));
+        rankingPanel.add(title, BorderLayout.NORTH);
+
+        // Ranking list in center
+        rankingListModel = new DefaultListModel<>();
+        rankingList = new JList<>(rankingListModel);
+        rankingPanel.add(new JScrollPane(rankingList), BorderLayout.CENTER);
+
+        // Controls (combo, sort, back) at bottom
+        String[] options = {"等級", "貨幣", "牌位積分"};
+        rankingCombo = new JComboBox<>(options);
+        JButton sortButton = new JButton("排序");
+        JButton backButton = new JButton("Back");
+        backButton.addActionListener(e -> showLobbyPanel());
+        JPanel controlPanel = new JPanel();
+        controlPanel.add(new JLabel("依據："));
+        controlPanel.add(rankingCombo);
+        controlPanel.add(sortButton);
+        controlPanel.add(backButton);
+        rankingPanel.add(controlPanel, BorderLayout.SOUTH);
+
+        sortButton.addActionListener(e -> {
+            rankingListModel.clear();
+            List<Player> all = recordService.loadAllPlayers();
+            String key = (String) rankingCombo.getSelectedItem();
+            Comparator<Player> comp;
+            if ("貨幣".equals(key)) {
+                comp = Comparator.comparingInt(Player::getCurrency).reversed();
+            } else if ("牌位積分".equals(key)) {
+                comp = Comparator.comparingInt(Player::getRating).reversed();
+            } else {
+                comp = Comparator.comparingInt(Player::getLevel).reversed();
+            }
+            all.stream().sorted(comp).forEach(p -> {
+                String line = String.format("%s - 等級:%d, 貨幣:%d, 牌位:%d",
+                    p.getUsername(), p.getLevel(), p.getCurrency(), p.getRating());
+                rankingListModel.addElement(line);
+            });
+        });
+    }
+
+    private void showRankingPanel() {
+        CardLayout layout = (CardLayout) mainPanel.getLayout();
+        layout.show(mainPanel, "Ranking");
     }
 
     @Override

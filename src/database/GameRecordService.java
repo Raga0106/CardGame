@@ -7,6 +7,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+import model.Player;
 
 /**
  * Service for managing game records in an SQLite database.
@@ -64,6 +65,34 @@ public class GameRecordService {
                 System.out.println("[DB] 'record' table created.");
             } else {
                 System.out.println("[DB] 'record' table already exists.");
+            }
+
+            // 檢查 players 資料表是否已存在
+            boolean playersTableExists = false;
+            rs = connection.getMetaData().getTables(null, null, "players", null);
+            if (rs.next()) {
+                playersTableExists = true;
+            }
+
+            if (!playersTableExists) {
+                // Create players table with password, level, xp, currency, rating
+                statement.execute("CREATE TABLE IF NOT EXISTS players (" +
+                        "username TEXT PRIMARY KEY NOT NULL UNIQUE, " +
+                        "password TEXT NOT NULL, " +
+                        "level INTEGER DEFAULT 1, " +
+                        "xp INTEGER DEFAULT 0, " +
+                        "currency INTEGER DEFAULT 1000, " +
+                        "rating INTEGER DEFAULT 1000" +
+                        ");");
+                System.out.println("[DB] 'players' table created with password column.");
+            } else {
+                System.out.println("[DB] 'players' table already exists.");
+                // Ensure all necessary columns exist in players table for backward compatibility
+                try { statement.execute("ALTER TABLE players ADD COLUMN password TEXT"); System.out.println("[DB] Added missing column 'password' to players"); } catch (SQLException ignored) {}
+                try { statement.execute("ALTER TABLE players ADD COLUMN level INTEGER DEFAULT 1"); System.out.println("[DB] Added missing column 'level' to players"); } catch (SQLException ignored) {}
+                try { statement.execute("ALTER TABLE players ADD COLUMN xp INTEGER DEFAULT 0"); System.out.println("[DB] Added missing column 'xp' to players"); } catch (SQLException ignored) {}
+                try { statement.execute("ALTER TABLE players ADD COLUMN currency INTEGER DEFAULT 1000"); System.out.println("[DB] Added missing column 'currency' to players"); } catch (SQLException ignored) {}
+                try { statement.execute("ALTER TABLE players ADD COLUMN rating INTEGER DEFAULT 1000"); System.out.println("[DB] Added missing column 'rating' to players"); } catch (SQLException ignored) {}
             }
 
             // 確保管理員帳號存在
@@ -211,16 +240,22 @@ public class GameRecordService {
      * Checks the content of the players table in the database.
      */
     public void checkDatabaseContent() {
-        String queryPlayersSQL = "SELECT * FROM players;";
+        String queryPlayersSQL = "SELECT username, password, level, xp, currency, rating FROM players;";
         try (Connection connection = DriverManager.getConnection(DB_URL);
              Statement statement = connection.createStatement();
              ResultSet rs = statement.executeQuery(queryPlayersSQL)) {
-            System.out.println("Players table content:");
+            System.out.println("[DB Debug] Players table content:");
             while (rs.next()) {
-                System.out.printf("Username: %s, Password: %s\n", rs.getString("username"), rs.getString("password"));
+                System.out.printf("Username: %s, Password: %s, Level: %d, XP: %d, Currency: %d, Rating: %d\n",
+                    rs.getString("username"),
+                    rs.getString("password"),
+                    rs.getInt("level"),
+                    rs.getInt("xp"),
+                    rs.getInt("currency"),
+                    rs.getInt("rating"));
             }
         } catch (SQLException e) {
-            System.err.println("Error checking database content: " + e.getMessage());
+            System.err.println("[DB Debug] Error checking database content: " + e.getMessage());
             e.printStackTrace();
         }
     }
@@ -352,5 +387,90 @@ public class GameRecordService {
             e.printStackTrace();
         }
         return records;
+    }
+
+    public Player loadPlayerData(String username) {
+        String sql = "SELECT level, xp, currency, rating FROM players WHERE username = ?";
+        System.out.println("[DB] loadPlayerData SQL: " + sql + ", user=" + username);
+        try (Connection conn = DriverManager.getConnection(DB_URL);
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, username);
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) {
+                int level = rs.getInt("level");
+                int xp = rs.getInt("xp");
+                int currency = rs.getInt("currency");
+                int rating = rs.getInt("rating");
+                System.out.println(String.format("[DB] Loaded player %s: level=%d, xp=%d, currency=%d, rating=%d", username, level, xp, currency, rating));
+                return new Player(username, level, xp, currency, rating);
+            }
+        } catch (SQLException e) {
+            System.err.println("Error loading player data: " + e.getMessage());
+        }
+        // If player data not found, create default
+        Player newPlayer = new Player(username, 1, 0, 1000, 1000);
+        if (savePlayerData(newPlayer)) {
+            System.out.println("Created new player data entry for: " + username);
+            return newPlayer;
+        }
+        return null;
+    }
+
+    public boolean savePlayerData(Player player) {
+        if (player == null) return false;
+        String sql = "UPDATE players SET level = ?, xp = ?, currency = ?, rating = ? WHERE username = ?";
+        System.out.println(String.format("[DB] savePlayerData SQL: %s, player=%s level=%d xp=%d currency=%d rating=%d", sql,
+                player.getUsername(), player.getLevel(), player.getXp(), player.getCurrency(), player.getRating()));
+        try (Connection conn = DriverManager.getConnection(DB_URL);
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, player.getLevel());
+            pstmt.setInt(2, player.getXp());
+            pstmt.setInt(3, player.getCurrency());
+            pstmt.setInt(4, player.getRating());
+            pstmt.setString(5, player.getUsername());
+            int rows = pstmt.executeUpdate();
+            if (rows == 0) {
+                // No existing row updated, insert new one preserving password
+                String insert = "INSERT INTO players (username, password, level, xp, currency, rating) VALUES (?, ?, ?, ?, ?, ?)";
+                try (PreparedStatement ins = conn.prepareStatement(insert)) {
+                    ins.setString(1, player.getUsername());
+                    ins.setString(2, player.getUsername()); // fallback password to username if missing
+                    ins.setInt(3, player.getLevel());
+                    ins.setInt(4, player.getXp());
+                    ins.setInt(5, player.getCurrency());
+                    ins.setInt(6, player.getRating());
+                    ins.executeUpdate();
+                }
+            }
+            return true;
+        } catch (SQLException e) {
+            System.err.println("[DB] Error saving player data: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Loads all players from the database with their stats.
+     * @return List of Player objects.
+     */
+    public List<Player> loadAllPlayers() {
+        List<Player> players = new ArrayList<>();
+        String sql = "SELECT username, level, xp, currency, rating FROM players";
+        try (Connection conn = DriverManager.getConnection(DB_URL);
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                String user = rs.getString("username");
+                int level = rs.getInt("level");
+                int xp = rs.getInt("xp");
+                int currency = rs.getInt("currency");
+                int rating = rs.getInt("rating");
+                players.add(new Player(user, level, xp, currency, rating));
+            }
+        } catch (SQLException e) {
+            System.err.println("[DB] Error loading all players: " + e.getMessage());
+            e.printStackTrace();
+        }
+        return players;
     }
 }
