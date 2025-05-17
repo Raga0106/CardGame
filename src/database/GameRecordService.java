@@ -4,7 +4,6 @@ import java.sql.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import model.Player;
@@ -14,24 +13,25 @@ import model.Player;
  */
 public class GameRecordService {
     private static final String DB_FILENAME = "game_records.db";
-    private static final Path DATA_DIR = Paths.get("data");
+    // 動態計算應用程式所在的資料夾，並定位 data 子目錄
     public static final String DB_URL;
     static {
         try {
-            // 確保 data 資料夾存在於專案根目錄
-            if (!Files.exists(DATA_DIR)) {
-                Files.createDirectories(DATA_DIR);
-                System.out.println("[DB] Created data directory at " + DATA_DIR.toAbsolutePath());
+            // 取得程式碼（jar 或 exe）位置
+            Path codePath = Paths.get(GameRecordService.class
+                    .getProtectionDomain()
+                    .getCodeSource()
+                    .getLocation()
+                    .toURI());
+            // jar 在 app 資料夾下，data 與 jar 同層
+            Path appDir = codePath.getParent();
+            Path dataDir = appDir.resolve("data");
+            if (!Files.exists(dataDir)) {
+                Files.createDirectories(dataDir);
+                System.out.println("[DB] Created data directory at " + dataDir.toAbsolutePath());
             }
-            // 遷移舊的 root 資料庫到 data 資料夾
-            Path rootDb = Paths.get(DB_FILENAME);
-            Path newDb = DATA_DIR.resolve(DB_FILENAME);
-            if (Files.exists(rootDb) && !Files.exists(newDb)) {
-                Files.move(rootDb, newDb, StandardCopyOption.REPLACE_EXISTING);
-                System.out.println("[DB] Migrated database from root to " + newDb.toAbsolutePath());
-            }
-            // 設定絕對路徑的 SQLite URL
-            DB_URL = "jdbc:sqlite:" + newDb.toAbsolutePath();
+            Path dbFile = dataDir.resolve(DB_FILENAME);
+            DB_URL = "jdbc:sqlite:" + dbFile.toAbsolutePath();
         } catch (Exception e) {
             throw new ExceptionInInitializerError("Failed to initialize database URL: " + e.getMessage());
         }
@@ -93,6 +93,29 @@ public class GameRecordService {
                 try { statement.execute("ALTER TABLE players ADD COLUMN xp INTEGER DEFAULT 0"); System.out.println("[DB] Added missing column 'xp' to players"); } catch (SQLException ignored) {}
                 try { statement.execute("ALTER TABLE players ADD COLUMN currency INTEGER DEFAULT 1000"); System.out.println("[DB] Added missing column 'currency' to players"); } catch (SQLException ignored) {}
                 try { statement.execute("ALTER TABLE players ADD COLUMN rating INTEGER DEFAULT 1000"); System.out.println("[DB] Added missing column 'rating' to players"); } catch (SQLException ignored) {}
+            }
+
+            // 檢查 deck 資料表是否已存在
+            boolean deckTableExists = false;
+            rs = connection.getMetaData().getTables(null, null, "deck", null);
+            if (rs.next()) {
+                deckTableExists = true;
+            }
+
+            if (!deckTableExists) {
+                statement.execute("CREATE TABLE IF NOT EXISTS deck (" +
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT," +
+                        "username TEXT NOT NULL," +
+                        "card_name TEXT NOT NULL," +
+                        "attribute TEXT NOT NULL," +
+                        "rarity TEXT NOT NULL," +
+                        "type TEXT NOT NULL," +
+                        "description TEXT," +
+                        "base_power INTEGER NOT NULL" +
+                        ");");
+                System.out.println("[DB] 'deck' table created.");
+            } else {
+                System.out.println("[DB] 'deck' table already exists.");
             }
 
             // 確保管理員帳號存在
