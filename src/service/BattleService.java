@@ -37,12 +37,15 @@ public class BattleService {
 
         public int getLoserFinalPower() {
             return loserFinalPower;
-        }
-
-        @Override
+        }        @Override
         public String toString() {
-            return String.format("Winner: %s (Power: %d), Loser: %s (Power: %d)",
-                    winner.getName(), winnerFinalPower, loser.getName(), loserFinalPower);
+            if (winner == null && loser == null) {
+                // Draw situation
+                return String.format("Draw (Power: %d vs %d)", winnerFinalPower, loserFinalPower);
+            } else {
+                return String.format("Winner: %s (Power: %d), Loser: %s (Power: %d)",
+                        winner.getName(), winnerFinalPower, loser.getName(), loserFinalPower);
+            }
         }
     }
 
@@ -61,13 +64,14 @@ public class BattleService {
             c1FinalPower += 4;
         } else if (c2.getAttribute().isStrongAgainst(c1.getAttribute())) {
             c2FinalPower += 4;
-        }
-
-        // Determine winner
+        }        // Determine winner
         if (c1FinalPower > c2FinalPower) {
             return new BattleResult(c1, c2, c1FinalPower, c2FinalPower);
-        } else {
+        } else if (c2FinalPower > c1FinalPower) {
             return new BattleResult(c2, c1, c2FinalPower, c1FinalPower);
+        } else {
+            // Draw situation - both cards have the same final power
+            return new BattleResult(null, null, c1FinalPower, c2FinalPower);
         }
     }
 }

@@ -224,39 +224,34 @@ public class GameRecordService {
     }
 
     /**
-     * Validates a user's login credentials.
-     * @param username The username.
-     * @param password The password.
-     * @return true if credentials are valid.
+     * 驗證使用者登入。
+     * @param username 使用者名稱
+     * @param password 密碼
+     * @return 如果登入成功，則為 Player 物件，否則為 null
      */
-    public boolean loginUser(String username, String password) {
-        String queryUserSQL = "SELECT password FROM players WHERE username = ?";
-        try (Connection connection = DriverManager.getConnection(DB_URL);
-             PreparedStatement ps = connection.prepareStatement(queryUserSQL)) {
-
-            System.out.println("[DB] loginUser SQL: " + queryUserSQL);
-
-            ps.setString(1, username);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    String storedPassword = rs.getString("password").trim(); // Trim whitespace
-                    boolean isValid = password.trim().equals(storedPassword);
-                    if (isValid) {
-                        System.out.println("Login successful for user: " + username);
-                    } else {
-                        System.err.println("Login failed: Incorrect password for user: " + username);
-                        System.err.println("Expected: " + storedPassword + ", Provided: " + password.trim());
-                    }
-                    return isValid;
-                } else {
-                    System.err.println("Login failed: Username not found (" + username + ").");
-                }
+    public Player loginUser(String username, String password) {
+        String sql = "SELECT * FROM players WHERE username = ? AND password = ?"; // 假設密碼未加密
+        try (Connection conn = DriverManager.getConnection(DB_URL); // Fix: Use DriverManager
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, username);
+            pstmt.setString(2, password);
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) {
+                // 登入成功，創建並回傳 Player 物件
+                return new Player(
+                    rs.getString("username"), // Fix: Use username
+                    rs.getInt("level"),       // Fix: Use level
+                    rs.getInt("xp"),          // Fix: Use xp instead of experience
+                    rs.getInt("currency"),    // Fix: Use currency
+                    rs.getInt("rating")       // Fix: Use rating
+                    // 注意：如果 Player 建構子需要更多參數，請從 ResultSet 中獲取
+                );
             }
         } catch (SQLException e) {
-            System.err.println("Error during login: " + e.getMessage());
+            System.err.println("登入時資料庫錯誤：" + e.getMessage());
             e.printStackTrace();
         }
-        return false;
+        return null; // 登入失敗
     }
 
     /**

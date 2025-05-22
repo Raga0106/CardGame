@@ -100,16 +100,14 @@ public class GameController {
         Card playerCard = playerCards.remove(playerCardIndex);
         Card computerCard = computerCards.remove(0); // Computer always picks the first card
 
-        BattleResult result = battleService.fight(playerCard, computerCard);
-
-        if (result.getWinner() == playerCard) {
+        BattleResult result = battleService.fight(playerCard, computerCard);        if (result.getWinner() == playerCard) {
             playerScore++;
             addXP(10);      // award XP for win
             addCurrency(5); // award currency for win
         } else if (result.getWinner() == computerCard) {
             computerScore++;
         } else {
-            // draw
+            // draw - both winner and loser are null
             addXP(2);
             addCurrency(1);
         }

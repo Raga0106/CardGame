@@ -22,6 +22,7 @@ import java.util.Enumeration;
 import java.util.stream.Collectors;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.SwingWorker;
 
 /**
  * GUI-based interface for the game using Swing.
@@ -35,17 +36,18 @@ public class GameGUI extends JFrame {
     private JLabel scoreLabel;
     private JLabel roundLabel;
     private JPanel computerCardPanel;
+    private final CardLayout cardLayout; // Added
     private final JPanel mainPanel; // Main panel with CardLayout
     private final JPanel drawCardPanel; // Panel for card drawing
     private final JPanel battlePanel; // Panel for battle
-    private final JPanel loginPanel; // Panel for login and registration
+    private JPanel loginPanel; // Panel for login and registration - Removed final
     private final JPanel lobbyPanel; // Panel for the game lobby
     private final JPanel drawOptionsPanel; // Panel for choosing single or ten draw
     private final JPanel selectionPanel; // Panel for selecting battle cards
     private DefaultListModel<String> deckListModel;
     private JList<String> deckList;
     private GameRecordService recordService;  // Database service for users and records
-    private String currentUser; // Track logged-in user
+    private Player currentPlayer; // Changed from String to Player
     private JLabel playerLevelLabel; // Label for player level
     private JLabel playerXpLabel;   // Label for player XP
     private JLabel playerCurrencyLabel; // Label for player currency
@@ -55,6 +57,13 @@ public class GameGUI extends JFrame {
     private DefaultListModel<Player> rankingListModel; // 改為Player型別
     private JList<Player> rankingList; // 改為Player型別
     private JProgressBar xpBar;      // Progress bar for XP
+
+    // Fields for login panel components that need to be accessed by LoginWorker
+    private JTextField usernameField;
+    private JPasswordField passwordField;
+    private JLabel statusLabel;
+    private JButton loginButton;
+
 
     /**
      * Constructor for GameGUI.
@@ -78,7 +87,8 @@ public class GameGUI extends JFrame {
         setJMenuBar(createMenuBar());
 
         // 主面板使用CardLayout布局
-        mainPanel = new JPanel(new CardLayout());
+        cardLayout = new CardLayout(); // Initialize cardLayout
+        mainPanel = new JPanel(cardLayout); // Use initialized cardLayout
         add(mainPanel);
 
         // 初始化组件
@@ -145,30 +155,88 @@ public class GameGUI extends JFrame {
     }
 
     private void initializeLoginPanel() {
-        // 清空面板以防再次初始化
-        loginPanel.removeAll();
+        // loginPanel = new JPanel(new GridBagLayout()); // This line was causing the final field assignment error.
+        // loginPanel is already initialized in the constructor or as a field.
+        // We should clear it and set its layout if we are re-initializing it.
+        if (loginPanel == null) {
+            loginPanel = new JPanel(new GridBagLayout());
+        } else {
+            loginPanel.removeAll();
+            loginPanel.setLayout(new GridBagLayout());
+        }
         
-        // 使用BorderLayout優化佈局
-        loginPanel.setLayout(new BorderLayout(10, 10));
+        // 設置面板邊距
         loginPanel.setBorder(BorderFactory.createEmptyBorder(40, 60, 40, 60));
         
-        // 標題面板
-        JPanel titlePanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        // 使用GridBagLayout管理佈局
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(10, 10, 10, 10);
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        
+        // 標題
         JLabel titleLabel = new JLabel("卡牌對決：元素抽卡競技場", SwingConstants.CENTER);
         titleLabel.setFont(new Font("Microsoft JhengHei UI", Font.BOLD, 24));
-        titlePanel.add(titleLabel);
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.gridwidth = 2;
+        loginPanel.add(titleLabel, gbc);
         
+        // 副標題
         JLabel subtitleLabel = new JLabel("歡迎來到遊戲世界", SwingConstants.CENTER);
         subtitleLabel.setFont(new Font("Microsoft JhengHei UI", Font.ITALIC, 16));
         subtitleLabel.setBorder(BorderFactory.createEmptyBorder(5, 0, 20, 0));
-        titlePanel.add(subtitleLabel);
+        gbc.gridy = 1;
+        loginPanel.add(subtitleLabel, gbc);
         
-        loginPanel.add(titlePanel, BorderLayout.NORTH);
+        // 使用者名稱標籤和文本框
+        JLabel usernameLabel = new JLabel("使用者名稱:");
+        usernameLabel.setFont(new Font("Microsoft JhengHei UI", Font.PLAIN, 14));
+        gbc.gridx = 0;
+        gbc.gridy = 2;
+        gbc.gridwidth = 1;
+        loginPanel.add(usernameLabel, gbc);
         
-        // 按鈕面板
-        JPanel buttonPanel = new JPanel(new GridLayout(3, 1, 10, 20));
-        buttonPanel.setBorder(BorderFactory.createEmptyBorder(30, 100, 30, 100));
+        usernameField = new JTextField(20); // Assign to field
+        usernameField.setFont(new Font("Microsoft JhengHei UI", Font.PLAIN, 14));
+        gbc.gridx = 1;
+        loginPanel.add(usernameField, gbc);
         
+        // 密碼標籤和文本框
+        JLabel passwordLabel = new JLabel("密碼:");
+        passwordLabel.setFont(new Font("Microsoft JhengHei UI", Font.PLAIN, 14));
+        gbc.gridx = 0;
+        gbc.gridy = 3;
+        loginPanel.add(passwordLabel, gbc);
+        
+        passwordField = new JPasswordField(20); // Assign to field
+        passwordField.setFont(new Font("Microsoft JhengHei UI", Font.PLAIN, 14));
+        gbc.gridx = 1;
+        loginPanel.add(passwordField, gbc);
+        
+        // 登入狀態標籤
+        statusLabel = new JLabel("請輸入您的帳號和密碼"); // Assign to field
+        statusLabel.setFont(new Font("Microsoft JhengHei UI", Font.PLAIN, 12));
+        statusLabel.setForeground(Color.GRAY);
+        gbc.gridx = 0;
+        gbc.gridy = 4;
+        gbc.gridwidth = 2;
+        loginPanel.add(statusLabel, gbc);
+        
+        // 登入按鈕
+        loginButton = createStyledButton("登入", e -> { // Assign to field
+            String username = usernameField.getText();
+            String password = new String(passwordField.getPassword());
+            // TODO: Add input validation here later
+
+            loginButton.setEnabled(false); // Disable button while logging in
+            // Optionally, show a loading indicator here
+            statusLabel.setText("正在登入...");
+
+            LoginWorker worker = new LoginWorker(username, password);
+            worker.execute();
+        });
+        
+        // 註冊新帳號按鈕
         JButton registerButton = createStyledButton("註冊新帳號", e -> { 
             String user = JOptionPane.showInputDialog(this, "請輸入使用者名稱:");
             if (user != null && !user.isEmpty()) {
@@ -183,26 +251,7 @@ public class GameGUI extends JFrame {
             }
         });
         
-        JButton loginButton = createStyledButton("登入遊戲", e -> { 
-            String user = JOptionPane.showInputDialog(this, "使用者名稱:");
-            String pass = JOptionPane.showInputDialog(this, "密碼:");
-            if (user != null && pass != null) {
-                if (recordService.loginUser(user, pass)) {
-                    currentUser = user;
-                    // 載入或創建玩家資料，並設為當前玩家
-                    Player player = recordService.loadPlayerData(currentUser);
-                    gameController.setCurrentPlayer(player);
-                    gameController.loadPlayerDeck(currentUser, recordService);
-                    updatePlayerStatsDisplay();
-                    // 測試：列印整個玩家資料表內容
-                    recordService.checkDatabaseContent();
-                    showLobbyPanel();
-                } else {
-                    JOptionPane.showMessageDialog(this, "登入失敗。請檢查憑證。", "錯誤", JOptionPane.ERROR_MESSAGE);
-                }
-            }
-        });
-        
+        // 退出遊戲按鈕
         JButton exitButton = createStyledButton("退出遊戲", e -> {
             int confirm = JOptionPane.showConfirmDialog(this, 
                 "確定要退出遊戲嗎？", "確認", JOptionPane.YES_NO_OPTION);
@@ -211,11 +260,15 @@ public class GameGUI extends JFrame {
             }
         });
         
+        // 按鈕面板
+        JPanel buttonPanel = new JPanel(new GridLayout(3, 1, 10, 20));
+        buttonPanel.setBorder(BorderFactory.createEmptyBorder(30, 100, 30, 100));
         buttonPanel.add(registerButton);
         buttonPanel.add(loginButton);
         buttonPanel.add(exitButton);
         
-        loginPanel.add(buttonPanel, BorderLayout.CENTER);
+        gbc.gridy = 5;
+        loginPanel.add(buttonPanel, gbc);
         
         // 底部版權資訊
         JPanel footerPanel = new JPanel();
@@ -224,7 +277,8 @@ public class GameGUI extends JFrame {
         footerLabel.setForeground(Color.GRAY);
         footerPanel.add(footerLabel);
         
-        loginPanel.add(footerPanel, BorderLayout.SOUTH);
+        gbc.gridy = 6;
+        loginPanel.add(footerPanel, gbc);
         
         // 重新驗證和重新繪製
         loginPanel.revalidate();
@@ -291,19 +345,19 @@ public class GameGUI extends JFrame {
             BorderFactory.createEtchedBorder(), "系統功能"));
             
         JButton logoutButton = createStyledButton("登出", e -> {
-            currentUser = null;
+            currentPlayer = null; // Fix: Use currentPlayer
             JOptionPane.showMessageDialog(this, "您已成功登出。", "登出", JOptionPane.INFORMATION_MESSAGE);
             showLoginPanel();
         });
         adminPanel.add(logoutButton);
         
         // 管理員功能 (只有admin才能看到)
-        if ("admin".equals(currentUser)) {
+        if (currentPlayer != null && "admin".equals(currentPlayer.getUsername())) { // Fix: Use currentPlayer.getUsername()
             JButton initDbButton = createStyledButton("初始化資料庫", e -> {
                 int confirm = JOptionPane.showConfirmDialog(this,
                     "確定要清除所有遊戲紀錄嗎？", "確認", JOptionPane.YES_NO_OPTION);
                 if (confirm == JOptionPane.YES_OPTION) {
-                    if (recordService.clearDatabase(currentUser)) {
+                    if (recordService.clearDatabase(currentPlayer.getUsername())) { // Fix: Use currentPlayer.getUsername()
                         JOptionPane.showMessageDialog(this, "資料庫已清除。", "成功", JOptionPane.INFORMATION_MESSAGE);
                     } else {
                         JOptionPane.showMessageDialog(this, "資料庫清除失敗。", "錯誤", JOptionPane.ERROR_MESSAGE);
@@ -316,7 +370,7 @@ public class GameGUI extends JFrame {
                 int confirm = JOptionPane.showConfirmDialog(this,
                     "確定要清除所有遊戲紀錄嗎？", "確認", JOptionPane.YES_NO_OPTION);
                 if (confirm == JOptionPane.YES_OPTION) {
-                    if (recordService.clearDatabaseByType(currentUser, "records")) {
+                    if (recordService.clearDatabaseByType(currentPlayer.getUsername(), "records")) { // Fix: Use currentPlayer.getUsername()
                         JOptionPane.showMessageDialog(this, "所有遊戲紀錄已清除。", "成功", JOptionPane.INFORMATION_MESSAGE);
                     } else {
                         JOptionPane.showMessageDialog(this, "遊戲紀錄清除失敗。", "錯誤", JOptionPane.ERROR_MESSAGE);
@@ -329,7 +383,7 @@ public class GameGUI extends JFrame {
                 int confirm = JOptionPane.showConfirmDialog(this,
                     "確定要清除所有卡牌嗎？", "確認", JOptionPane.YES_NO_OPTION);
                 if (confirm == JOptionPane.YES_OPTION) {
-                    if (recordService.clearDatabaseByType(currentUser, "cards")) {
+                    if (recordService.clearDatabaseByType(currentPlayer.getUsername(), "cards")) { // Fix: Use currentPlayer.getUsername()
                         JOptionPane.showMessageDialog(this, "所有卡牌已清除。", "成功", JOptionPane.INFORMATION_MESSAGE);
                     } else {
                         JOptionPane.showMessageDialog(this, "卡牌清除失敗。", "錯誤", JOptionPane.ERROR_MESSAGE);
@@ -443,7 +497,9 @@ public class GameGUI extends JFrame {
         gbc.weightx = 1.0;
           JButton singleDraw = createStyledButton("單抽", e -> { 
             Card newCard = gameController.drawCard();
-            recordService.saveCardToDeck(currentUser, newCard); // 保存卡片到資料庫
+            if (currentPlayer != null) { // Fix: Check if currentPlayer is not null
+                recordService.saveCardToDeck(currentPlayer.getUsername(), newCard); // Fix: Use currentPlayer.getUsername()
+            }
             
             // 顯示抽卡動畫
             showAnimationEffect("card_draw");
@@ -458,7 +514,9 @@ public class GameGUI extends JFrame {
             
             List<Card> newCards = gameController.drawMultiple(10);
             for (Card card : newCards) {
-                recordService.saveCardToDeck(currentUser, card); // 保存每張卡片到資料庫
+                if (currentPlayer != null) { // Fix: Check if currentPlayer is not null
+                    recordService.saveCardToDeck(currentPlayer.getUsername(), card); // Fix: Use currentPlayer.getUsername()
+                }
             }
             updateCardButtons();
             showDrawCardPanel();
@@ -618,12 +676,11 @@ public class GameGUI extends JFrame {
                     playerCard.getName(), playerCard.getRarity(), playerCard.getAttribute(), playerCard.getBasePower()));
             gameLog.append(String.format("電腦出牌: %s (%s %s, 力量: %d)\n",
                     computerCard.getName(), computerCard.getRarity(), computerCard.getAttribute(), computerCard.getBasePower()));
-            
-            // 將英文結果轉為中文
+              // 根據勝者判斷結果並轉為中文
             String resultText;
-            if (result.toString().contains("PLAYER_WIN")) {
+            if (result.getWinner() == playerCard) {
                 resultText = "玩家獲勝！";
-            } else if (result.toString().contains("COMPUTER_WIN")) {
+            } else if (result.getWinner() == computerCard) {
                 resultText = "電腦獲勝！";
             } else {
                 resultText = "平局！";
@@ -682,8 +739,10 @@ public class GameGUI extends JFrame {
         gameLog.append("勝利者: " + winnerText + "\n");
 
         // 將記錄保存到資料庫
-        recordService.saveRecord(currentUser, "Player", gameController.getPlayerScore(), gameController.getComputerScore());
-        gameLog.append("遊戲記錄已保存。\n");
+        if (currentPlayer != null) { // Fix: Check if currentPlayer is not null
+            recordService.saveRecord(currentPlayer.getUsername(), "Player", gameController.getPlayerScore(), gameController.getComputerScore()); // Fix: Use currentPlayer.getUsername()
+            gameLog.append("遊戲記錄已保存。\n");
+        }
 
         // 根據勝負應用評分變更並保存
         gameController.applyRatingChange();
@@ -709,88 +768,101 @@ public class GameGUI extends JFrame {
             updateCardButtons();
         });
         restartButton.setToolTipText("開始新的對戰");
-        add(restartButton, BorderLayout.EAST);
+        // add(restartButton, BorderLayout.EAST); // This was causing issues, restart button is part of battle panel or similar context
     }
 
     private void addHistoryButton() {
         JButton historyButton = createStyledButton("查看歷史", e -> {
             // 使用 GameRecordService 的方法來查詢對戰紀錄
-            List<String> records = recordService.getAllRecords(currentUser);
-            if (records.isEmpty()) {
-                JOptionPane.showMessageDialog(this, 
-                    "用戶 " + currentUser + " 沒有找到對戰記錄", 
-                    "遊戲歷史", JOptionPane.INFORMATION_MESSAGE);
-            } else {
-                // 創建更美觀的遊戲歷史記錄對話框
-                JDialog historyDialog = new JDialog(this, "遊戲歷史記錄", true);
-                historyDialog.setLayout(new BorderLayout(10, 10));
-                historyDialog.setSize(500, 400);
-                historyDialog.setLocationRelativeTo(this);
-                
-                // 標題面板
-                JPanel titlePanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
-                JLabel titleLabel = new JLabel(currentUser + " 的遊戲記錄", SwingConstants.CENTER);
-                titleLabel.setFont(new Font("Microsoft JhengHei UI", Font.BOLD, 18));
-                titlePanel.add(titleLabel);
-                historyDialog.add(titlePanel, BorderLayout.NORTH);
-                
-                // 記錄列表
-                JPanel recordsPanel = new JPanel();
-                recordsPanel.setLayout(new BoxLayout(recordsPanel, BoxLayout.Y_AXIS));
-                recordsPanel.setBorder(BorderFactory.createEmptyBorder(10, 15, 10, 15));
-                
-                // 統計資訊
-                JLabel statsLabel = new JLabel("總遊戲記錄數: " + records.size());
-                statsLabel.setFont(new Font("Microsoft JhengHei UI", Font.ITALIC, 14));
-                statsLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 10, 0));
-                statsLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-                recordsPanel.add(statsLabel);
-                
-                // 添加每條記錄
-                int count = 1;
-                for (String record : records) {
-                    JPanel recordPanel = new JPanel();
-                    recordPanel.setLayout(new BorderLayout(5, 2));
-                    recordPanel.setBorder(BorderFactory.createCompoundBorder(
-                        BorderFactory.createMatteBorder(0, 0, 1, 0, Color.LIGHT_GRAY),
-                        BorderFactory.createEmptyBorder(8, 5, 8, 5)
-                    ));
+            if (currentPlayer != null) { // Fix: Check if currentPlayer is not null
+                List<String> records = recordService.getAllRecords(currentPlayer.getUsername()); // Fix: Use currentPlayer.getUsername()
+                if (records.isEmpty()) {
+                    JOptionPane.showMessageDialog(this, 
+                        "用戶 " + currentPlayer.getUsername() + " 沒有找到對戰記錄", // Fix: Use currentPlayer.getUsername()
+                        "遊戲歷史", JOptionPane.INFORMATION_MESSAGE);
+                } else {
+                    // 創建更美觀的遊戲歷史記錄對話框
+                    JDialog historyDialog = new JDialog(this, "遊戲歷史記錄", true);
+                    historyDialog.setLayout(new BorderLayout(10, 10));
+                    historyDialog.setSize(500, 400);
+                    historyDialog.setLocationRelativeTo(this);
                     
-                    // 為了使每條記錄更易讀，替換英文成中文並添加更多信息
-                    String enhancedRecord = record
-                        .replace("Game record for", "對戰記錄 -")
-                        .replace("Player", "玩家")
-                        .replace("Computer", "電腦");
+                    // 標題面板
+                    JPanel titlePanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+                    JLabel titleLabel = new JLabel(currentPlayer.getUsername() + " 的遊戲記錄", SwingConstants.CENTER); // Fix: Use currentPlayer.getUsername()
+                    titleLabel.setFont(new Font("Microsoft JhengHei UI", Font.BOLD, 18));
+                    if (isDarkTheme) {
+                        titleLabel.setForeground(Color.WHITE);
+                    }
+                    titlePanel.add(titleLabel);
+                    historyDialog.add(titlePanel, BorderLayout.NORTH);
                     
-                    // 添加斑馬紋效果
-                    if (count % 2 == 0) {
-                        recordPanel.setBackground(new Color(245, 245, 245));
+                    // 記錄列表
+                    JPanel recordsPanel = new JPanel();
+                    recordsPanel.setLayout(new BoxLayout(recordsPanel, BoxLayout.Y_AXIS));
+                    recordsPanel.setBorder(BorderFactory.createEmptyBorder(10, 15, 10, 15));
+                    if (isDarkTheme) {
+                        recordsPanel.setBackground(new Color(33, 37, 43));
                     }
                     
-                    JLabel recordLabel = new JLabel("#" + count + ": " + enhancedRecord);
-                    recordLabel.setFont(new Font("Microsoft JhengHei UI", Font.PLAIN, 14));
-                    recordPanel.add(recordLabel, BorderLayout.CENTER);
+                    // 統計資訊
+                    JLabel statsLabel = new JLabel("總遊戲記錄數: " + records.size());
+                    statsLabel.setFont(new Font("Microsoft JhengHei UI", Font.ITALIC, 14));
+                    statsLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 10, 0));
+                    statsLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+                    if (isDarkTheme) {
+                        statsLabel.setForeground(Color.WHITE);
+                    }
+                    recordsPanel.add(statsLabel);
                     
-                    recordsPanel.add(recordPanel);
-                    count++;
+                    // 添加每條記錄
+                    int count = 1;
+                    for (String record : records) {
+                        JPanel recordPanel = new JPanel();
+                        recordPanel.setLayout(new BorderLayout(5, 2));
+                        recordPanel.setBorder(BorderFactory.createCompoundBorder(
+                            BorderFactory.createMatteBorder(0, 0, 1, 0, Color.LIGHT_GRAY),
+                            BorderFactory.createEmptyBorder(8, 5, 8, 5)
+                        ));
+                        
+                        // 為了使每條記錄更易讀，替換英文成中文並添加更多信息
+                        String enhancedRecord = record
+                            .replace("Game record for", "對戰記錄 -")
+                            .replace("Player", "玩家")
+                            .replace("Computer", "電腦");
+                        
+                        // 添加斑馬紋效果
+                        if (count % 2 == 0) {
+                            recordPanel.setBackground(new Color(245, 245, 245));
+                        }
+                        
+                        JLabel recordLabel = new JLabel("#" + count + ": " + enhancedRecord);
+                        recordLabel.setFont(new Font("Microsoft JhengHei UI", Font.PLAIN, 14));
+                        recordPanel.add(recordLabel, BorderLayout.CENTER);
+                        
+                        recordsPanel.add(recordPanel);
+                        count++;
+                    }
+                    
+                    // 添加記錄到滾動面板
+                    JScrollPane scrollPane = new JScrollPane(recordsPanel);
+                    historyDialog.add(scrollPane, BorderLayout.CENTER);
+                    
+                    // 底部按鈕
+                    JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+                    JButton closeButton = createStyledButton("關閉", e2 -> historyDialog.dispose());
+                    buttonPanel.add(closeButton);
+                    historyDialog.add(buttonPanel, BorderLayout.SOUTH);
+                    
+                    // 顯示對話框
+                    historyDialog.setVisible(true);
                 }
-                
-                // 添加記錄到滾動面板
-                JScrollPane scrollPane = new JScrollPane(recordsPanel);
-                historyDialog.add(scrollPane, BorderLayout.CENTER);
-                
-                // 底部按鈕
-                JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
-                JButton closeButton = createStyledButton("關閉", e2 -> historyDialog.dispose());
-                buttonPanel.add(closeButton);
-                historyDialog.add(buttonPanel, BorderLayout.SOUTH);
-                
-                // 顯示對話框
-                historyDialog.setVisible(true);
+            } else {
+                JOptionPane.showMessageDialog(this, "請先登入以查看歷史記錄。", "提示", JOptionPane.INFORMATION_MESSAGE);
             }
         });
         historyButton.setToolTipText("查看過去的對戰記錄");
-        add(historyButton, BorderLayout.WEST);
+        // add(historyButton, BorderLayout.WEST); // This was causing issues, history button is part of battle panel or similar context
     }    /**
      * 顯示玩家的當前牌組，包括完整詳細信息和重複卡片的計數。
      */
@@ -1351,8 +1423,8 @@ public class GameGUI extends JFrame {
     }
 
     private void updatePlayerStatsDisplay() {
-        if (currentUser != null && gameController.getCurrentPlayer() != null) {
-            Player player = gameController.getCurrentPlayer();
+        if (currentPlayer != null) {
+            Player player = currentPlayer; // 可直接使用currentPlayer或gameController.getCurrentPlayer()
             playerLevelLabel.setText("等級: " + player.getLevel());
             playerXpLabel.setText(String.format("經驗值: %d/%d", player.getXp(), player.getXpToNextLevel()));
             xpBar.setMaximum(player.getXpToNextLevel());
@@ -1371,7 +1443,7 @@ public class GameGUI extends JFrame {
     }
 
     /**
-     * Initializes the ranking panel with controls and list.
+     * 初始化排行榜面板，設置控制項和列表。
      */
     private void initializeRankingPanel() {
         rankingPanel.removeAll(); // 清除之前的組件（如果重新初始化）
@@ -1829,7 +1901,7 @@ public class GameGUI extends JFrame {
             int confirm = JOptionPane.showConfirmDialog(this, 
                 "確定要登出嗎？", "確認", JOptionPane.YES_NO_OPTION);
             if (confirm == JOptionPane.YES_OPTION) {
-                currentUser = null;
+                currentPlayer = null; // Fix: Use currentPlayer
                 showLoginPanel();
             }
         });
@@ -1890,13 +1962,17 @@ public class GameGUI extends JFrame {
         JMenuItem historyItem = new JMenuItem("對戰歷史", KeyEvent.VK_H);
         historyItem.addActionListener(e -> {
             // 使用之前定義的方法來查詢對戰紀錄
-            List<String> records = recordService.getAllRecords(currentUser);
-            if (records.isEmpty()) {
-                JOptionPane.showMessageDialog(this, 
-                    "用戶 " + currentUser + " 沒有找到對戰記錄", 
-                    "遊戲歷史", JOptionPane.INFORMATION_MESSAGE);
+            if (currentPlayer != null) { // Fix: Check currentPlayer
+                List<String> records = recordService.getAllRecords(currentPlayer.getUsername()); // Fix: Use currentPlayer.getUsername()
+                if (records.isEmpty()) {
+                    JOptionPane.showMessageDialog(this, 
+                        "用戶 " + currentPlayer.getUsername() + " 沒有找到對戰記錄", // Fix: Use currentPlayer.getUsername()
+                        "遊戲歷史", JOptionPane.INFORMATION_MESSAGE);
+                } else {
+                    showBattleHistory(records);
+                }
             } else {
-                showBattleHistory(records);
+                JOptionPane.showMessageDialog(this, "請先登入以查看歷史記錄。", "提示", JOptionPane.INFORMATION_MESSAGE);
             }
         });
         
@@ -2076,7 +2152,8 @@ public class GameGUI extends JFrame {
     
     /**
      * 顯示對戰歷史記錄
-     */    private void showBattleHistory(List<String> records) {
+     */
+    private void showBattleHistory(List<String> records) {
         JDialog historyDialog = new JDialog(this, "遊戲歷史記錄", true);
         historyDialog.setLayout(new BorderLayout(10, 10));
         historyDialog.setSize(500, 400);
@@ -2092,7 +2169,7 @@ public class GameGUI extends JFrame {
         if (isDarkTheme) {
             titlePanel.setBackground(new Color(33, 37, 43));
         }
-        JLabel titleLabel = new JLabel(currentUser + " 的遊戲記錄", SwingConstants.CENTER);
+        JLabel titleLabel = new JLabel((currentPlayer != null ? currentPlayer.getUsername() : "") + " 的遊戲記錄", SwingConstants.CENTER); // Fix: Use currentPlayer.getUsername()
         titleLabel.setFont(new Font("Microsoft JhengHei UI", Font.BOLD, 18));
         if (isDarkTheme) {
             titleLabel.setForeground(Color.WHITE);
@@ -2555,4 +2632,107 @@ public class GameGUI extends JFrame {
         timer.setRepeats(false);
         timer.start();
     }
-}
+
+    // Inner class for handling login asynchronously
+    private class LoginWorker extends SwingWorker<Player, Void> {
+        private final String username;
+        private final String password;
+        private Player loggedInPlayer = null;
+        private String errorMessage = null;
+
+        public LoginWorker(String username, String password) {
+            this.username = username;
+            this.password = password;
+        }
+
+        @Override
+        protected Player doInBackground() throws Exception {
+            try {
+                // Simulate network latency or long-running task
+                // Thread.sleep(2000);
+                loggedInPlayer = recordService.loginUser(username, password);
+                if (loggedInPlayer != null) {
+                    // currentPlayer = loggedInPlayer; // This was moved from here
+                    // gameController.setCurrentPlayer(loggedInPlayer); // Ensure GameController has this method or similar logic
+                    // It's better to set currentPlayer in done() after get() to ensure it's the result of the background task.
+                }
+                return loggedInPlayer;
+            } catch (Exception ex) {
+                // It's generally better to catch specific exceptions
+                errorMessage = "登入時發生錯誤：" + ex.getMessage();
+                ex.printStackTrace(); // For debugging, consider logging this instead
+                return null;
+            }
+        }
+
+        @Override
+        protected void done() {
+            loginButton.setEnabled(true); // Re-enable button
+            // Optionally, hide loading indicator here
+            try {
+                Player resultPlayer = get(); // Get the result from doInBackground
+                if (resultPlayer != null) {
+                    currentPlayer = resultPlayer; // Set currentPlayer with the successfully logged-in player
+                    gameController.setCurrentPlayer(currentPlayer); // Pass player to controller
+
+                    statusLabel.setText("登入成功！歡迎 " + currentPlayer.getUsername());
+                    usernameField.setText(""); // Clear fields
+                    passwordField.setText("");
+                    
+                    updateLobbyInfo(); 
+                    updatePlayerStatsDisplay(); // This will use the new currentPlayer
+                    // updatePlayerCurrencyLabel(); // updatePlayerStatsDisplay should cover this
+                    // updatePlayerRatingLabel(); // updatePlayerStatsDisplay should cover this
+                    
+                    cardLayout.show(mainPanel, "Lobby");
+                } else {
+                    if (errorMessage != null) {
+                        JOptionPane.showMessageDialog(GameGUI.this, errorMessage, "登入失敗", JOptionPane.ERROR_MESSAGE);
+                        statusLabel.setText(errorMessage);
+                    } else {
+                        JOptionPane.showMessageDialog(GameGUI.this, "無效的使用者名稱或密碼。", "登入失敗", JOptionPane.ERROR_MESSAGE);
+                        statusLabel.setText("登入失敗：無效的使用者名稱或密碼。");
+                    }
+                    passwordField.setText(""); // Clear password field only
+                }
+            } catch (Exception ex) {
+                // This catch block handles exceptions from get() or during UI updates
+                JOptionPane.showMessageDialog(GameGUI.this, "登入處理完成後發生錯誤：" + ex.getMessage(), "錯誤", JOptionPane.ERROR_MESSAGE);
+                statusLabel.setText("登入處理完成後發生錯誤。");
+                ex.printStackTrace(); // For debugging, consider logging this instead
+            }
+        }
+    }
+
+    // Placeholder for methods that might be called in LoginWorker.done()
+    // Ensure these methods exist and are correctly implemented in your GameGUI class.
+    private void updateLobbyInfo() {
+        // Example: lobbyWelcomeLabel.setText("Welcome, " + currentPlayer.getUsername());
+        // This method should refresh any information displayed on the lobby panel
+        // that depends on the currentPlayer.
+        if (currentPlayer != null) {
+            // Assuming you have labels like lobbyUsernameLabel, lobbyCurrencyLabel, lobbyRatingLabel
+            // Make sure these labels are declared as fields in GameGUI
+            // For example:
+            // lobbyUsernameLabel.setText("玩家: " + currentPlayer.getUsername());
+            // lobbyCurrencyLabel.setText("貨幣: " + currentPlayer.getCurrency());
+            // lobbyRatingLabel.setText("評分: " + currentPlayer.getRating());
+            System.out.println("Lobby info updated for " + currentPlayer.getUsername());
+        }
+    }
+
+    // Ensure updatePlayerCurrencyLabel and updatePlayerRatingLabel are implemented
+    private void updatePlayerCurrencyLabel() {
+        if (currentPlayer != null && playerCurrencyLabel != null) {
+            playerCurrencyLabel.setText("貨幣: " + currentPlayer.getCurrency());
+        }
+    }
+
+    private void updatePlayerRatingLabel() {
+        if (currentPlayer != null && playerRatingLabel != null) {
+            playerRatingLabel.setText("評分: " + currentPlayer.getRating());
+        }
+    }
+
+
+} // End of GameGUI class
