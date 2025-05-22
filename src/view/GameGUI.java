@@ -1685,11 +1685,15 @@ public class GameGUI extends JFrame {
         // 原始卡牌列表 (用於過濾)
         final List<Card> originalDeck = new ArrayList<>(deck);
         
+        // 用於追踪顯示列表中每個項目對應的卡片索引
+        final List<Integer> cardIndices = new ArrayList<>();
+        
         // 過濾前先顯示所有卡片
         for (int i = 0; i < deck.size(); i++) {
             Card c = deck.get(i);
             deckListModel.addElement(String.format("%s (%s %s, 類型:%s, 力量:%d)",
                 c.getName(), c.getRarity(), c.getAttribute(), c.getType(), c.getBasePower()));
+            cardIndices.add(i);
         }
         
         // 先清空面板，再初始化
@@ -1770,30 +1774,33 @@ public class GameGUI extends JFrame {
         
         JComboBox<String> attributeFilter = new JComboBox<>(new String[]{"全部", "火", "水", "草"});
         attributeFilter.setFont(new Font("Microsoft JhengHei UI", Font.PLAIN, 14));
-        
-        // 重置按鈕
+          // 重置按鈕
         JButton resetButton = createStyledButton("重置過濾", e -> {
             rarityFilter.setSelectedIndex(0);
             attributeFilter.setSelectedIndex(0);
             
             // 重置列表顯示所有卡片
             deckListModel.clear();
-            for (Card c : originalDeck) {
+            cardIndices.clear();
+            for (int i = 0; i < originalDeck.size(); i++) {
+                Card c = originalDeck.get(i);
                 deckListModel.addElement(String.format("%s (%s %s, 類型:%s, 力量:%d)",
                     c.getName(), c.getRarity(), c.getAttribute(), c.getType(), c.getBasePower()));
+                cardIndices.add(i);
             }
         });
-        
-        // 過濾監聽器
+          // 過濾監聽器
         ActionListener filterListener = e -> {
             // 先清空當前列表
             deckListModel.clear();
+            cardIndices.clear();
             
             // 應用過濾條件
             int rarityIdx = rarityFilter.getSelectedIndex();
             int attributeIdx = attributeFilter.getSelectedIndex();
             
-            for (Card c : originalDeck) {
+            for (int i = 0; i < originalDeck.size(); i++) {
+                Card c = originalDeck.get(i);
                 // 稀有度過濾
                 boolean rarityMatch = rarityIdx == 0 || 
                     (rarityIdx == 1 && c.getRarity().toString().equals("SSR")) ||
@@ -1810,6 +1817,7 @@ public class GameGUI extends JFrame {
                 if (rarityMatch && attributeMatch) {
                     deckListModel.addElement(String.format("%s (%s %s, 類型:%s, 力量:%d)",
                         c.getName(), c.getRarity(), c.getAttribute(), c.getType(), c.getBasePower()));
+                    cardIndices.add(i);
                 }
             }
         };
@@ -1849,14 +1857,14 @@ public class GameGUI extends JFrame {
                 JOptionPane.showMessageDialog(this, "請確切選擇10張卡牌。", "選擇錯誤", JOptionPane.ERROR_MESSAGE);
                 return;
             }
-            
-            // 從已經存在的卡牌列表中取得選擇的卡片
+              // 從已經存在的卡牌列表中根據映射的索引取得選擇的卡片
             List<Card> selected = new ArrayList<>();
             for (int idx : sel) {
-                selected.add(deck.get(idx));
+                // 使用cardIndices來映射回原始的卡牌
+                int originalIdx = cardIndices.get(idx);
+                selected.add(deck.get(originalIdx));
             }
-            
-            // 設置這些卡片用於對戰
+              // 設置這些卡片用於對戰
             gameController.setBattleCards(selected);
             showBattlePanel();
         });
@@ -2674,6 +2682,10 @@ public class GameGUI extends JFrame {
                 if (resultPlayer != null) {
                     currentPlayer = resultPlayer; // Set currentPlayer with the successfully logged-in player
                     gameController.setCurrentPlayer(currentPlayer); // Pass player to controller
+                    
+                    // 載入玩家的卡片收藏 - 從資料庫載入玩家的卡片庫
+                    gameController.loadPlayerDeck(currentPlayer.getUsername(), recordService);
+                    System.out.println("[LOGIN] 已從資料庫載入玩家 " + currentPlayer.getUsername() + " 的卡片，共 " + gameController.getPlayerDeck().size() + " 張");
 
                     statusLabel.setText("登入成功！歡迎 " + currentPlayer.getUsername());
                     usernameField.setText(""); // Clear fields
